@@ -1,20 +1,122 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect } from "react";
+import { Canvas, useImage, Image, Group } from "@shopify/react-native-skia";
+import {
+  useSharedValue,
+  withTiming,
+  Easing,
+  withSequence,
+  withRepeat,
+  useFrameCallback,
+  useDerivedValue,
+  interpolate,
+} from "react-native-reanimated";
+import { SafeAreaView, useWindowDimensions, View } from "react-native";
+import {
+  GestureHandlerRootView,
+  GestureDetector,
+  Gesture,
+} from "react-native-gesture-handler";
 
-export default function App() {
+const GRAVITY = 1000;
+const JUMP_FORCE = -500;
+
+const App = () => {
+  const { height, width } = useWindowDimensions();
+  const bg = useImage(require("./assets/sprites/background-day.png"));
+  const bird = useImage(require("./assets/sprites/yellowbird-upflap.png"));
+  const pipeBottom = useImage(require("./assets/sprites/pipe-green.png"));
+  const pipeTop = useImage(require("./assets/sprites/pipe-green-top.png"));
+  const base = useImage(require("./assets/sprites/base.png"));
+
+  const x = useSharedValue(width);
+  const birdY = useSharedValue(height / 3);
+  const birdYVelocity = useSharedValue(100);
+  const birdTransform = useDerivedValue(() => {
+    return [
+      { rotate: interpolate(birdYVelocity.value, [-500, 500], [-0.5, 0.5]) },
+    ];
+  });
+
+  const birdOrigin = useDerivedValue(() => {
+    return { x: width / 4 + 32, y: birdY.value + 24 };
+  });
+
+  useFrameCallback(({ timeSincePreviousFrame: dt }) => {
+    if (!dt) {
+      return;
+    }
+    birdY.value = birdY.value + (birdYVelocity.value * dt) / 1000;
+    birdYVelocity.value = birdYVelocity.value + (GRAVITY * dt) / 1000;
+  });
+
+  useEffect(() => {
+    x.value = withRepeat(
+      withSequence(
+        withTiming(-150, {
+          duration: 3000,
+          easing: Easing.linear,
+        }),
+        withTiming(width, { duration: 0 })
+      ),
+      -1
+    );
+    //birdY.value = withTiming(height, { duration: 1000 });
+  }, []);
+
+  const gesture = Gesture.Tap().onStart(() => {
+    birdYVelocity.value = JUMP_FORCE;
+  });
+
+  const pipeOffset = 0;
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureDetector gesture={gesture}>
+        <Canvas style={{ width, height }}>
+          {/* BG */}
+          <Image image={bg} fit="cover" width={width} height={height} />
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+          {/* Pipes */}
+
+          <Image
+            image={pipeTop}
+            width={103}
+            height={640}
+            y={pipeOffset - 320}
+            x={x}
+          />
+          <Image
+            image={pipeBottom}
+            width={103}
+            height={640}
+            y={height - 320 + pipeOffset}
+            x={x}
+          />
+
+          {/* Base */}
+
+          <Image
+            image={base}
+            width={width}
+            height={150}
+            y={height - 75}
+            x={0}
+            fit={"cover"}
+          />
+
+          {/* Bird */}
+          <Group transform={birdTransform} origin={birdOrigin}>
+            <Image
+              image={bird}
+              width={64}
+              height={48}
+              y={birdY}
+              x={width / 4}
+            />
+          </Group>
+        </Canvas>
+      </GestureDetector>
+    </GestureHandlerRootView>
+  );
+};
+export default App;
